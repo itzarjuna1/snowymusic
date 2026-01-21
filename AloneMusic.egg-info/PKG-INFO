@@ -37,8 +37,8 @@ Requires-Dist: unidecode>=1.3.8
 Requires-Dist: tgcrypto>=1.2.5
 Requires-Dist: pyrofork>=2.3.45
 Requires-Dist: ffmpeg-python>=0.2.0
-Requires-Dist: py-tgcalls==2.2.8
-Requires-Dist: ntgcalls==2.0.6
+Requires-Dist: py-tgcalls==2.2.10
+Requires-Dist: ntgcalls==2.0.7
 Requires-Dist: motor>=3.4.0
 Requires-Dist: psutil>=5.9.8
 Requires-Dist: heroku3>=5.2.1
@@ -81,6 +81,9 @@ It’s designed to be lightweight, fast, and customizable.
 ## ❤️ Support
 
 💬 **Telegram:** [AloneMusic](https://t.me/TheTeamHacker)  
+
+🆘 **Any Problem? DM:** [𝚨Łꪮⲛ𝛆 🚩𝗧ε᧘‌ᴍ](https://t.me/codeshivu)
+
 📂 **GitHub Issues:** [Report a Problem](https://github.com/TheAloneTeam/AloneMusic/issues/new)
 
 ---
@@ -106,10 +109,8 @@ Click this button to deploy instantly on **Heroku**:
 
 - **Install uv for Efficient Dependency Management**:
   ```bash
-    python -m pip install --upgrade pip
-  ```
-  ```bash
   pip install uv
+  ```
 - **Clone the Repository:**  
   ```bash
   git clone https://github.com/TheAloneTeam/AloneMusic cd AloneMusic
