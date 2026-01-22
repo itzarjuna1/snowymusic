@@ -1,10 +1,4 @@
-#
-# Copyright (C) 2021-2022 by TheAloneteam@Github, < https://github.com/TheAloneTeam >.
-#
-# This file is part of < https://github.com/TheAloneTeam/AloneMusic > project,
-# and is released under the "GNU v3.0 License Agreement".
-# Please see < https://github.com/TheAloneTeam/AloneMusic/blob/master/LICENSE >
-#
+
 # All rights reserved.
 
 import platform
@@ -18,14 +12,13 @@ from pyrogram.types import InputMediaPhoto, Message
 from pytgcalls.__version__ import __version__ as pytgver
 
 import config
-from AloneMusic import app
-from AloneMusic.core.userbot import assistants
-from AloneMusic.misc import SUDOERS, mongodb
-from AloneMusic.plugins import ALL_MODULES
-from AloneMusic.utils.database import (get_served_chats, get_served_users,
-                                       get_sudoers)
-from AloneMusic.utils.decorators.language import language, languageCB
-from AloneMusic.utils.inline.stats import back_stats_buttons, stats_buttons
+from UPPERMOON import app
+from UPPERMOON.core.userbot import assistants
+from UPPERMOON.misc import SUDOERS, mongodb
+from UPPERMOON.plugins import ALL_MODULES
+from UPPERMOON.utils.database import (get_served_chats, get_served_users, get_sudoers)
+from UPPERMOON.utils.decorators.language import language, languageCB
+from UPPERMOON.utils.inline.stats import back_stats_buttons, stats_buttons
 from config import BANNED_USERS
 
 
