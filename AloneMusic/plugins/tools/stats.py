@@ -12,13 +12,13 @@ from pyrogram.types import InputMediaPhoto, Message
 from pytgcalls.__version__ import __version__ as pytgver
 
 import config
-from UPPERMOON import app
-from UPPERMOON.core.userbot import assistants
-from UPPERMOON.misc import SUDOERS, mongodb
-from UPPERMOON.plugins import ALL_MODULES
-from UPPERMOON.utils.database import (get_served_chats, get_served_users, get_sudoers)
-from UPPERMOON.utils.decorators.language import language, languageCB
-from UPPERMOON.utils.inline.stats import back_stats_buttons, stats_buttons
+from Alonemusic import app
+from Alonemusic.core.userbot import assistants
+from Alonemusic.misc import SUDOERS, mongodb
+from Alonemusic.plugins import ALL_MODULES
+from Alonemusic.utils.database import (get_served_chats, get_served_users, get_sudoers)
+from Alonemusic.utils.decorators.language import language, languageCB
+from Alonemusic.utils.inline.stats import back_stats_buttons, stats_buttons
 from config import BANNED_USERS
 
 
