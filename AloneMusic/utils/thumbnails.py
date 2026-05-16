@@ -1,204 +1,228 @@
-#
-# Copyright (C) 2021-2022 by TheAloneteam@Github, < https://github.com/TheAloneTeam >.
-#
-# This file is part of < https://github.com/TheAloneTeam/AloneMusic > project,
-# and is released under the "GNU v3.0 License Agreement".
-# Please see < https://github.com/TheAloneTeam/AloneMusic/blob/master/LICENSE >
-#
-# All rights reserved.
-
 import os
-import re
-
-import aiofiles
+import math
 import aiohttp
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
+import aiofiles
+
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from py_yt import VideosSearch
 
-from config import YOUTUBE_IMG_URL
+
+CACHE_DIR = "cache"
+BRAND = "Oneforall Music"
+SPOTIFY_GREEN = (29, 185, 84)
 
 
-def changeImageSize(maxWidth, maxHeight, image):
-    widthRatio = maxWidth / image.size[0]
-    heightRatio = maxHeight / image.size[1]
-    newWidth = int(widthRatio * image.size[0])
-    newHeight = int(heightRatio * image.size[1])
-    newImage = image.resize((newWidth, newHeight))
-    return newImage
+def resize(img, size):
+    return img.resize(size, Image.LANCZOS)
 
 
-async def get_thumb(videoid):
-    if os.path.isfile(f"cache/{videoid}.png"):
-        return f"cache/{videoid}.png"
+def truncate(text, length=40):
+    return text if len(text) <= length else text[: max(0, length - 3)] + "..."
 
-    url = f"https://www.youtube.com/watch?v={videoid}"
+
+def fit_text(draw, text, font_path, max_size, min_size, max_width, max_lines=2):
+    words = text.split()
+    if not words:
+        font = ImageFont.truetype(font_path, min_size)
+        return font, text
+
+    for size in range(max_size, min_size - 1, -1):
+        font = ImageFont.truetype(font_path, size)
+        lines = []
+        current = ""
+
+        for word in words:
+            test = word if not current else current + " " + word
+            if draw.textlength(test, font=font) <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+
+        if current:
+            lines.append(current)
+
+        if len(lines) <= max_lines:
+            return font, "".join(lines)
+
+    font = ImageFont.truetype(font_path, min_size)
+    return font, text
+
+
+def make_radial_glow(size, center, inner_color, outer_color, radius):
+    w, h = size
+    img = Image.new("RGBA", size, outer_color + (0,))
+    px = img.load()
+
+    cx, cy = center
+    for y in range(h):
+        for x in range(w):
+            d = math.dist((x, y), (cx, cy))
+            t = max(0.0, min(1.0, d / radius))
+            a = int((1.0 - t) ** 2 * 180)
+            px[x, y] = (*inner_color, a)
+
+    return img.filter(ImageFilter.GaussianBlur(30))
+
+
+async def get_thumb(videoid: str):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+
+    final = os.path.join(CACHE_DIR, f"{videoid}.png")
+    temp = os.path.join(CACHE_DIR, f"{videoid}.jpg")
+
+    if os.path.exists(final):
+        return final
+
     try:
-        results = VideosSearch(url, limit=1)
-        for result in (await results.next())["result"]:
-            try:
-                title = result["title"]
-                title = re.sub(r"\W+", " ", title)
-                title = title.title()
-            except:
-                title = "Unsupported Title"
-            try:
-                duration = result["duration"]
-            except:
-                duration = "Unknown"
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-            try:
-                views = result["viewCount"]["short"]
-            except:
-                views = "Unknown Views"
+        search = VideosSearch(videoid, limit=1)
+        result = await search.next()
+        data = result["result"][0]
+
+        title_raw = data.get("title", "Unknown Title")
+        channel_raw = data.get("channel", {}).get("name", "Unknown Artist")
+        duration = data.get("duration", "0:00")
+
+        title = truncate(title_raw, 48)
+        channel = truncate(channel_raw, 28)
+
+        thumbs = data.get("thumbnails", [])
+        if not thumbs:
+            return None
+
+        thumb = thumbs[-1]["url"].split("?")[0]
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail) as resp:
-                if resp.status == 200:
-                    f = await aiofiles.open(f"cache/thumb{videoid}.png", mode="wb")
+            async with session.get(thumb) as resp:
+                resp.raise_for_status()
+                async with aiofiles.open(temp, "wb") as f:
                     await f.write(await resp.read())
-                    await f.close()
 
-        youtube = Image.open(f"cache/thumb{videoid}.png")
+        base = Image.open(temp).convert("RGB")
 
-        GLOW_COLOR = "#ff0099"  # Neon Pink
-        BORDER_COLOR = "#FF1493"  # Deep Pink
-        image1 = changeImageSize(1280, 720, youtube)
-        image1 = image1.filter(ImageFilter.GaussianBlur(20))
-        image1 = ImageEnhance.Brightness(image1).enhance(0.4)
+        bg = resize(base, (1280, 720)).filter(ImageFilter.GaussianBlur(40))
+        bg = ImageEnhance.Brightness(bg).enhance(0.18).convert("RGBA")
 
-        thumb_width = 840
-        thumb_height = 460
+        dark = Image.new("RGBA", (1280, 720), (0, 0, 0, 170))
+        bg = Image.alpha_composite(bg, dark)
 
-        youtube_thumb = youtube.resize((thumb_width, thumb_height))
-
-        mask = Image.new("L", (thumb_width, thumb_height), 0)
-        draw_mask = ImageDraw.Draw(mask)
-        draw_mask.rounded_rectangle(
-            [(0, 0), (thumb_width, thumb_height)], radius=20, fill=255
+        glow1 = make_radial_glow(
+            (1280, 720),
+            (220, 140),
+            SPOTIFY_GREEN,
+            (0, 0, 0),
+            520,
         )
-        youtube_thumb.putalpha(mask)
-        center_x = 640
-        center_y_img = 300
-        thumb_x = center_x - (thumb_width // 2)
-        thumb_y = center_y_img - (thumb_height // 2)
-        thumb_x2 = thumb_x + thumb_width
-        thumb_y2 = thumb_y + thumb_height
-
-        glow_layer = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
-        draw_glow = ImageDraw.Draw(glow_layer)
-
-        glow_expand = 20
-        draw_glow.rounded_rectangle(
-            [
-                (thumb_x - glow_expand, thumb_y - glow_expand),
-                (thumb_x2 + glow_expand, thumb_y2 + glow_expand),
-            ],
-            radius=30,
-            fill=GLOW_COLOR,
+        glow2 = make_radial_glow(
+            (1280, 720),
+            (1040, 620),
+            (15, 130, 60),
+            (0, 0, 0),
+            480,
         )
-        glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(30))
-        image1.paste(glow_layer, (0, 0), glow_layer)
-        border_layer = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
-        draw_border = ImageDraw.Draw(border_layer)
 
-        border_expand = 5
-        draw_border.rounded_rectangle(
-            [
-                (thumb_x - border_expand, thumb_y - border_expand),
-                (thumb_x2 + border_expand, thumb_y2 + border_expand),
-            ],
-            radius=25,
-            fill=BORDER_COLOR,
+        bg = Image.alpha_composite(bg, glow1)
+        bg = Image.alpha_composite(bg, glow2)
+
+        card_w, card_h = 1180, 430
+        card_x = (1280 - card_w) // 2
+        card_y = 145
+
+        shadow = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 120))
+        shadow_mask = Image.new("L", (card_w, card_h), 0)
+        ImageDraw.Draw(shadow_mask).rounded_rectangle(
+            (0, 0, card_w, card_h), radius=42, fill=255
         )
-        image1.paste(border_layer, (0, 0), border_layer)
+        shadow = shadow.filter(ImageFilter.GaussianBlur(35))
+        bg.paste(shadow, (card_x, card_y + 12), shadow_mask)
 
-        image1.paste(youtube_thumb, (thumb_x, thumb_y), youtube_thumb)
+        card = Image.new("RGBA", (card_w, card_h), (10, 10, 10, 230))
+        card_mask = Image.new("L", (card_w, card_h), 0)
+        ImageDraw.Draw(card_mask).rounded_rectangle(
+            (0, 0, card_w, card_h), radius=42, fill=255
+        )
+        bg.paste(card, (card_x, card_y), card_mask)
 
-        draw = ImageDraw.Draw(image1)
+        overlay = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        od.rounded_rectangle((0, 0, card_w - 1, card_h - 1), radius=42, outline=(40, 255, 120, 50), width=2)
+        bg.alpha_composite(overlay, (card_x, card_y))
+
+        draw = ImageDraw.Draw(bg)
+
+        thumb_size = 170
+        thumb_img = resize(base, (thumb_size, thumb_size))
+        thumb_mask = Image.new("L", (thumb_size, thumb_size), 0)
+        ImageDraw.Draw(thumb_mask).rounded_rectangle(
+            (0, 0, thumb_size, thumb_size), radius=28, fill=255
+        )
+
+        thumb_x = card_x + 42
+        thumb_y = card_y + 70
+        bg.paste(thumb_img, (thumb_x, thumb_y), thumb_mask)
 
         try:
-            font_title = ImageFont.truetype("AloneMusic/assets/font.ttf", 45)
-            font_details = ImageFont.truetype("AloneMusic/assets/font2.ttf", 30)
-            font_watermark = ImageFont.truetype("AloneMusic/assets/font2.ttf", 25)
-        except:
-            font_title = ImageFont.truetype("arial.ttf", 45)
-            font_details = ImageFont.truetype("arial.ttf", 30)
-            font_watermark = ImageFont.truetype("arial.ttf", 25)
+            title_font_path = "Oneforall/assets/font.ttf"
+            artist_font_path = "Oneforall/assets/font2.ttf"
+            title_font, title_text = fit_text(draw, title, title_font_path, 60, 34, 690, 2)
+            artist_font = ImageFont.truetype(artist_font_path, 30)
+            small_font = ImageFont.truetype(artist_font_path, 22)
+        except Exception:
+            title_font = ImageFont.load_default()
+            artist_font = ImageFont.load_default()
+            small_font = ImageFont.load_default()
+            title_text = title
 
-        def get_text_width(text, font):
-            if hasattr(draw, "textlength"):
-                return draw.textlength(text, font=font)
-            else:
-                return draw.textsize(text, font=font)[0]
+        draw.text((thumb_x + 240, card_y + 42), "This phone", fill=(165, 165, 165), font=artist_font)
 
-        if len(title) > 45:
-            title = title[:45] + "..."
+        brand_w = draw.textlength(BRAND, font=small_font)
+        draw.text((1220 - brand_w, 42), BRAND, fill=(200, 200, 200), font=small_font)
 
-        w_title = get_text_width(title, font_title)
-        text_y_pos = thumb_y2 + 50
+        btn_x = card_x + 910
+        btn_y = card_y + 35
+        draw.rounded_rectangle((btn_x, btn_y, btn_x + 230, btn_y + 72), radius=35, fill=(28, 28, 28))
+        draw.rounded_rectangle((btn_x, btn_y, btn_x + 230, btn_y + 72), radius=35, outline=(29, 185, 84, 120), width=2)
+        draw.text((btn_x + 32, btn_y + 18), "Media output", fill="white", font=small_font)
 
-        draw.text(
-            ((1280 - w_title) / 2, text_y_pos),
-            text=title,
-            fill="white",
-            font=font_title,
-            stroke_width=1,
-            stroke_fill="black",
-        )
+        title_x = thumb_x + 240
+        title_y = card_y + 102
+        draw.multiline_text((title_x, title_y), title_text, fill="white", font=title_font, spacing=6)
 
-        stats_text = f"YouTube : {views} | Time : {duration} | Player : @snowy_x_musicbot"
-        w_stats = get_text_width(stats_text, font_details)
-        draw.text(
-            ((1280 - w_stats) / 2, text_y_pos + 70),
-            text=stats_text,
-            fill=BORDER_COLOR,
-            font=font_details,
-            stroke_width=1,
-            stroke_fill="black",
-        )
+        draw.text((title_x, card_y + 205), channel, fill=(175, 175, 175), font=artist_font)
 
-        text_classy = "Snowy music"
-        w_classy = get_text_width(text_classy, font_watermark)
+        controls_y = card_y + 265
+        ctrl_font = title_font
+        draw.text((thumb_x + 330, controls_y), "⏮", fill=(230, 230, 230), font=ctrl_font)
+        draw.text((thumb_x + 495, controls_y), "⏸", fill=(230, 230, 230), font=ctrl_font)
+        draw.text((thumb_x + 665, controls_y), "⏭", fill=(230, 230, 230), font=ctrl_font)
 
-        draw.text(
-            (1280 - w_classy - 30, 30),
-            text=text_classy,
-            fill="yellow",
-            font=font_watermark,
-            stroke_width=1,
-            stroke_fill="black",
-        )
+        bar_x1 = thumb_x + 20
+        bar_x2 = card_x + card_w - 60
+        bar_y = card_y + 385
 
-        draw.text(
-            (30, 680),
-            text="Snowy music",
-            fill="white",
-            font=font_watermark,
-            stroke_width=1,
-            stroke_fill="black",
-        )
+        draw.line((bar_x1, bar_y, bar_x2, bar_y), fill=(55, 55, 55), width=8)
 
-        try:
-            os.remove(f"cache/thumb{videoid}.png")
-        except:
-            pass
+        progress = min(bar_x1 + 250, bar_x2)
+        draw.line((bar_x1, bar_y, progress, bar_y), fill=(255, 255, 255), width=8)
 
-        file_name = f"cache/{videoid}.png"
-        image1.save(file_name)
-        return file_name
+        draw.ellipse((progress - 13, bar_y - 13, progress + 13, bar_y + 13), fill="white")
+        draw.ellipse((progress - 18, bar_y - 18, progress + 18, bar_y + 18), outline=(29, 185, 84), width=2)
+
+        draw.text((bar_x1, bar_y + 18), "0:00", fill=(210, 210, 210), font=small_font)
+        draw.text((bar_x2 - 45, bar_y + 18), duration, fill=(210, 210, 210), font=small_font)
+
+        bg.convert("RGB").save(final, "PNG")
+
+        return final
 
     except Exception as e:
-        print(e)
-        return YOUTUBE_IMG_URL
+        print(f"THUMB ERROR: {e}")
+        return None
 
-
-async def get_qthumb(vidid):
-    try:
-        url = f"https://www.youtube.com/watch?v={vidid}"
-        results = VideosSearch(url, limit=1)
-        for result in (await results.next())["result"]:
-            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
-        return thumbnail
-    except Exception as e:
-        print(e)
-        return YOUTUBE_IMG_URL
+    finally:
+        if os.path.exists(temp):
+            try:
+                os.remove(temp)
+            except:
+                pass
